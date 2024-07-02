@@ -1,6 +1,11 @@
 ﻿
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Kernel = Microsoft.SemanticKernel.Kernel;
+using System;
+using System.Text;
+
 
 //var builder = WebApplication.CreateBuilder(args);
 
@@ -59,38 +64,36 @@ builder.AddAzureOpenAIChatCompletion(
 
 var kernel = builder.Build();
 
-var prompt = @"
-Answer my question below :
-{{$input}}
-";
 
-var summarize = kernel.CreateFunctionFromPrompt(prompt, executionSettings: new OpenAIPromptExecutionSettings { MaxTokens = 2048 }, description : "Answer question");
+// Get AI service instance used to manage the user chat
+var chatGPT = kernel.GetRequiredService<IChatCompletionService>();
 
-//{
-//    "schema": 1,
-//  "description": "Generate a funny joke",
-//  "execution_settings": [
-//    {
-//        "max_tokens": 1000,
-//      "temperature": 0.9,
-//      "top_p": 0.0,
-//      "presence_penalty": 0.0,
-//      "frequency_penalty": 0.0
-//    }
-//  ]
-//}
+var systemMessage = "Đây là cuộc trò chuyện giữa một bot AI có tên là Bé Na và một khách hàng muốn đặt mua bánh của tiệm " +
+    "\nBé Na là nhân viên của tiệm bánh đang tư vấn và thu thập thông tin từ khách hàng để tạo đơn hàng " +
+    "\nThứ tự trao đổi với khách phải bắt buộc tuân thủ theo các bước sau. Bước 1 là xin họ tên và số điện thoại của khách hàng và nói câu xin chào như sau" +
+    "\" 'Xin chào {customerName}. Rất vui được gặp bạn' với customerName là tên của khách hàng đã cung cấp." +
+    "\nBước 2 là phải hỏi khách mua Bánh gì, kích cỡ như thế nào." +
+    "\nBước 3 là hỏi thời gian khách hàng đến lấy bánh,và hỏi khách hàng có muốn tiệm giao bánh đến nhà của khách hàng hay không ? Nếu khách hàng đồng ý giao bánh thì phải hỏi địa điểm để giao bánh." +
+    "\nBước 4 là tạo đơn bánh từ những thông tin đã thu thập được ở các bước trước đó " +
+    "\nCuộc trò chuyện sử dụng hoàn toàn bằng Tiếng Việt";
+             
 
-string text1 = @"
-Who are you ?";
+var chat = new ChatHistory(systemMessage);
 
-string text2 = @"
-What's your name ?";
+Console.OutputEncoding = Encoding.UTF8; // using Unicode
 
-Console.WriteLine(await kernel.InvokeAsync(summarize, new() { ["input"] = text1 }));
+while (true)
+{
+    // 1. Ask the user for a message. The user enters a message.  Add the user message into the Chat History object.
+    var userMessage = Console.ReadLine();
+    Console.WriteLine($"User: {userMessage}");
+    chat.AddUserMessage(userMessage);
 
-Console.WriteLine(await kernel.InvokeAsync(summarize, new() { ["input"] = text2 }));
+    // 2. Send the chat object to AI asking to generate a response. Add the bot message into the Chat History object.
+    var assistantReply = await chatGPT.GetChatMessageContentAsync(chat, new OpenAIPromptExecutionSettings());
+    chat.AddAssistantMessage(assistantReply.Content);
 
-Console.ReadLine();
-// Output:
-//   Energy conserved, entropy increases, zero entropy at 0K.
-//   Objects move in response to forces.
+    // 3. Show the reply as an image
+    Console.WriteLine($"\nBot:");
+    Console.WriteLine($"[{assistantReply}]\n");
+}
